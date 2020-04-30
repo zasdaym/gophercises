@@ -6,7 +6,14 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
 )
+
+func init() {
+	tpl = template.Must(template.New("").Parse(defaultHandlerTmpl))
+}
+
+var tpl *template.Template
 
 var defaultHandlerTmpl = `
 <!DOCTYPE html>
@@ -41,11 +48,22 @@ type handler struct {
 
 // ServeHTTP ...
 func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	tpl := template.Must(template.New("").Parse(defaultHandlerTmpl))
-	err := tpl.Execute(w, h.s["intro"])
-	if err != nil {
-		log.Fatalln(err)
+	path := strings.TrimSpace(r.URL.Path)
+	if path == "" || path == "/" {
+		path = "/intro"
 	}
+	path = path[1:]
+
+	if chapter, ok := h.s[path]; ok {
+		err := tpl.Execute(w, chapter)
+		if err != nil {
+			log.Printf("%v", err)
+			http.Error(w, "Something went wrong....", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	http.Error(w, "Chapter not found", http.StatusNotFound)
 }
 
 // JSONStory will return a Story given a io.Reader
